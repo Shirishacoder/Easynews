@@ -3,9 +3,12 @@ const router = express.Router();
 const User = require("../models/User");
 const Article = require("../models/Article");
 const { getMLRecommendations } = require("../services/mlService");
+const fetchNewsAndStore = require("../services/newsService");
 
 router.get("/:userId", async (req, res) => {
   try {
+
+    await fetchNewsAndStore();
     const userId = req.params.userId;
 
     if (!userId) {

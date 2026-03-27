@@ -11,30 +11,43 @@ export default function News() {
   const { user } = useAuth();
 
   const observer = useRef();
-  
+
+  // 🔥 Infinite Scroll
   const lastArticleElementRef = useCallback(node => {
     if (loading) return;
     if (observer.current) observer.current.disconnect();
+
     observer.current = new IntersectionObserver(entries => {
       if (entries[0].isIntersecting && hasMore) {
-        setPage(prevPage => prevPage + 1);
+        setPage(prev => prev + 1);
       }
     });
+
     if (node) observer.current.observe(node);
   }, [loading, hasMore]);
 
+  // 🔥 RESET when user changes (ONLY HERE)
   useEffect(() => {
-    // Guest mode: fetch recent only on mount (no infinite scrolling here to keep things simple, or could adapt)
-    if (!user?._id) {
-      if (page === 1) fetchRecentArticles();
+    if (user?._id) {
+      setArticles([]);
+      setPage(1);
+      setHasMore(true);
+    } else {
+      fetchRecentArticles();
     }
   }, [user?._id]);
 
+  // 🔹 Guest mode
   const fetchRecentArticles = async () => {
     try {
-      const res = await fetch('http://localhost:5000/api/news/recent');
-      if (!res.ok) throw new Error('Recent fetch failed');
+      setLoading(true);
+
+      const res = await fetch(
+        `http://localhost:5000/api/news/recent?t=${Date.now()}`
+      );
+
       const data = await res.json();
+
       const formatted = data.map((item, index) => ({
         id: `recent-${index}`,
         articleId: item._id,
@@ -44,32 +57,40 @@ export default function News() {
         category: item.category,
         url: item.url
       }));
+
       setArticles(formatted);
-      setHasMore(false); // guest feed is finite for now
+      setHasMore(false);
+
     } catch (err) {
-      setError('No articles available. Try populating DB.');
+      setError('No articles available.');
     } finally {
       setLoading(false);
     }
   };
 
-  // Load personalized paginated data if user logged in
-useEffect(() => {
-  if (!user?._id || !hasMore) return;
+  // 🔥 MAIN ML FETCH (FIXED)
+  useEffect(() => {
+    if (!user?._id) return;
 
-  setLoading(true);
+    const fetchData = async () => {
+      try {
+        setLoading(true);
 
-  fetch(`http://localhost:5000/api/recommend/${user._id}?page=${page}&limit=5`)
-    .then(res => {
-      if (!res.ok) throw new Error(`Recommend ${res.status}`);
-      return res.json();
-    })
-    .then(data => {
-      if (data.length === 0) {
-        setHasMore(false);
-      } else {
+        const res = await fetch(
+          `http://localhost:5000/api/recommend/${user._id}?page=${page}&limit=5&t=${Date.now()}`
+        );
+
+        if (!res.ok) throw new Error("Fetch failed");
+
+        const data = await res.json();
+
+        if (data.length === 0) {
+          setHasMore(false);
+          return;
+        }
+
         const formatted = data.map((item, index) => ({
-          id: `page${page}-${index}-${item._id}`,
+          id: `${page}-${index}-${item._id}`,
           articleId: item._id,
           title: item.title,
           summary: item.description,
@@ -78,46 +99,92 @@ useEffect(() => {
           url: item.url
         }));
 
-        setArticles(prev => [...prev, ...formatted]);
+        // 🔥 CRITICAL FIX
+        setArticles(prev => {
+          if (page === 1) {
+            return [...formatted]; // replace completely
+          }
+          return [...prev, ...formatted];
+        });
+
+      } catch (err) {
+        console.error(err);
+        if (page === 1) setError('Error fetching personalized news.');
+      } finally {
+        setLoading(false);
       }
-    })
-    .catch(err => {
-      console.error("Personalized fetch error:", err);
-      if (page === 1) setError('Error fetching personalized news.');
-    })
-    .finally(() => setLoading(false));
+    };
 
-}, [user?._id, page]);
+    fetchData();
 
-  if (loading && page === 1) return <div className="flex items-center justify-center h-screen text-white text-xl">Loading news...</div>;
-  if (error) return <div className="text-red-400 text-center mt-20 p-8 bg-red-500/10 rounded">{error}</div>;
-  if (articles.length === 0 && !loading) return <div className="text-gray-400 text-center mt-20">No news. <a href="http://localhost:5000/api/news/fetch-news" className="underline">Populate DB</a></div>;
+  }, [user?._id, page]);
+
+  // 🔥 FORCE REFRESH BUTTON (TEST / OPTIONAL)
+  
+
+  if (loading && page === 1) {
+    return (
+      <div className="flex items-center justify-center h-screen text-white text-xl">
+        Loading news...
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="text-red-400 text-center mt-20 p-8 bg-red-500/10 rounded">
+        {error}
+      </div>
+    );
+  }
+
+  if (articles.length === 0 && !loading) {
+    return (
+      <div className="text-gray-400 text-center mt-20">
+        No news.{" "}
+        <a href="http://localhost:5000/api/news/fetch-news" className="underline">
+          Populate DB
+        </a>
+      </div>
+    );
+  }
 
   return (
     <div className="w-full h-full bg-black overflow-y-scroll snap-y snap-mandatory no-scrollbar relative">
+
+      {/* 🔥 Optional Refresh Button */}
+     
+
       {articles.map((news, index) => {
         if (articles.length === index + 1) {
           return (
-            <div ref={lastArticleElementRef} key={news.id} className="snap-start w-full h-full shrink-0 relative">
-               <NewsCard news={news} userId={user?._id} />
-               {loading && <div className="absolute bottom-4 left-1/2 -translate-x-1/2 text-white bg-black/50 px-4 py-2 rounded-full backdrop-blur-md">Loading more...</div>}
+            <div
+              ref={lastArticleElementRef}
+              key={news.id}
+              className="snap-start w-full h-full shrink-0 relative"
+            >
+              <NewsCard news={news} userId={user?._id} />
+              {loading && (
+                <div className="absolute bottom-4 left-1/2 -translate-x-1/2 text-white bg-black/50 px-4 py-2 rounded-full backdrop-blur-md">
+                  Loading more...
+                </div>
+              )}
             </div>
           );
         } else {
           return (
             <div key={news.id} className="snap-start w-full h-full shrink-0">
-               <NewsCard news={news} userId={user?._id} />
+              <NewsCard news={news} userId={user?._id} />
             </div>
           );
         }
       })}
-      
+
       {!hasMore && articles.length > 0 && (
-         <div className="w-full py-12 flex justify-center items-center bg-black snap-start shrink-0 relative">
-            <span className="text-gray-500">You've reached the end of the feed.</span>
-         </div>
+        <div className="w-full py-12 flex justify-center items-center bg-black snap-start shrink-0">
+          <span className="text-gray-500">You've reached the end of the feed.</span>
+        </div>
       )}
     </div>
   );
 }
-

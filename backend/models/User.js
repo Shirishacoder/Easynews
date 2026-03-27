@@ -22,10 +22,10 @@ const userSchema = new mongoose.Schema({
     required: false,
     sparse: true // allows multiple nulls
   },
-  languagePreference: {
-    type: String,
-    default: 'English'
-  },
+  profession: {
+  type: String,
+  default: ""
+},
   interests: {
     type: [String],
     default: []

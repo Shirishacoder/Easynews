@@ -18,16 +18,26 @@ const INTERESTS = [
   'General'
 ];
 
-const LANGUAGES = ['English', 'Hindi', 'Spanish', 'French'];
+const PROFESSIONS = [
+  'Student',
+  'Engineer',
+  'Doctor',
+  'Business',
+  'Freelancer',
+  'Developer',
+  'Designer',
+  'Other'
+];
 
 const Onboarding = () => {
   const [step, setStep] = useState(1);
-  const [selectedLanguage, setSelectedLanguage] = useState('English');
+
   const [selectedInterests, setSelectedInterests] = useState([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [onboardingComplete, setOnboardingComplete] = useState(false);
   const navigate = useNavigate();
   const { user, setUser } = useAuth();
+  const [selectedProfession, setSelectedProfession] = useState('');
 
   useEffect(() => {
     if (onboardingComplete && user?.interests?.length > 0) {
@@ -51,7 +61,7 @@ const Onboarding = () => {
     setIsSubmitting(true);
     try {
       const { data } = await axiosClient.post('/user/onboarding', {
-        language: selectedLanguage,
+      profession: selectedProfession,
         interests: selectedInterests,
       });
       console.log('Onboarding data:', data);
@@ -91,31 +101,36 @@ const Onboarding = () => {
 
         {step === 1 ? (
           <div>
-            <h2 className="text-3xl font-bold mb-2">Choose Language</h2>
-            <p className="text-gray-400 mb-8">What language do you prefer for your news?</p>
-            
-            <div className="grid grid-cols-2 gap-4">
-              {LANGUAGES.map((lang) => (
-                <button
-                  key={lang}
-                  onClick={() => setSelectedLanguage(lang)}
-                  className={`py-4 rounded-xl border-2 font-medium transition-all ${
-                    selectedLanguage === lang
-                      ? 'border-white bg-white text-black'
-                      : 'border-white/10 bg-white/5 text-white hover:border-white/30'
-                  }`}
-                >
-                  {lang}
-                </button>
-              ))}
-            </div>
+            <h2 className="text-3xl font-bold mb-2">Choose Profession</h2>
+<p className="text-gray-400 mb-8">What best describes you?</p>
 
-            <button
-              onClick={handleNext}
-              className="mt-10 w-full py-4 bg-white text-black font-semibold rounded-xl hover:bg-gray-200 transition-colors"
-            >
-              Continue
-            </button>
+<div className="grid grid-cols-2 gap-4">
+  {PROFESSIONS.map((prof) => (
+    <button
+      key={prof}
+      onClick={() => setSelectedProfession(prof)}
+      className={`py-4 rounded-xl border-2 font-medium transition-all ${
+        selectedProfession === prof
+          ? 'border-white bg-white text-black'
+          : 'border-white/10 bg-white/5 text-white hover:border-white/30'
+      }`}
+    >
+      {prof}
+    </button>
+  ))}
+</div>
+          
+          <button
+  onClick={handleNext}
+  disabled={!selectedProfession}
+  className={`mt-10 w-full py-4 font-semibold rounded-xl ${
+    selectedProfession
+      ? 'bg-white text-black hover:bg-gray-200'
+      : 'bg-white/20 text-white/50 cursor-not-allowed'
+  }`}
+>
+  Continue
+</button>
           </div>
         ) : (
           <div>

@@ -7,12 +7,12 @@ const { protect } = require('../middleware/auth');
 // @desc    Update user language and interests
 router.post('/onboarding', protect, async (req, res) => {
   try {
-    const { language, interests } = req.body;
+    const { profession, interests } = req.body; // ✅ FIXED
 
     const user = await User.findById(req.user._id);
 
     if (user) {
-      user.languagePreference = language || user.languagePreference;
+      user.profession = profession || user.profession; // ✅ works now
       user.interests = interests || user.interests;
 
       const updatedUser = await user.save();

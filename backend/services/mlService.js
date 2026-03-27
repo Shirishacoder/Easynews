@@ -1,16 +1,14 @@
 const natural = require("natural");
 const TfIdf = natural.TfIdf;
 
-// 🔹 Dedup helper (based on URL)
+// 🔹 Deduplicate helper
 const deduplicate = (articles) => {
   const map = new Map();
-
   articles.forEach((a) => {
     if (a.url && !map.has(a.url)) {
       map.set(a.url, a);
     }
   });
-
   return Array.from(map.values());
 };
 
@@ -18,7 +16,7 @@ const getMLRecommendations = async (allArticles, user, page = 1, limit = 10) => 
   const tfidf = new TfIdf();
   const Activity = require('../models/Activity');
 
-  // ✅ Step 1: Add all articles to TF-IDF
+  // ✅ Step 1: Add articles to TF-IDF
   allArticles.forEach((article) => {
     const text = (article.title || "") + " " + (article.description || "");
     tfidf.addDocument(text);
@@ -26,82 +24,98 @@ const getMLRecommendations = async (allArticles, user, page = 1, limit = 10) => 
 
   let queryParts = [];
 
-  // ✅ Get recent activities (limit 50 for perf)
+  // ✅ Step 2: Get user activities
   const activities = await Activity.find({ userId: user._id })
-    .populate('articleId', 'title description')
+    .populate('articleId', '_id title description url category')
     .sort({ timestamp: -1 })
     .limit(50);
 
-  // ✅ Read History (x1)
   const readActs = activities
-  .filter(a => a.actionType === 'view' && a.articleId)
-  .map(a => a.articleId);
-  readActs.forEach((a) => {
-    queryParts.push((a.title || "") + " " + (a.description || ""));
+    .filter(a => a.actionType === 'view' && a.articleId)
+    .map(a => a.articleId);
+
+  const likedActs = activities
+    .filter(a => a.actionType === 'like' && a.articleId)
+    .map(a => a.articleId);
+
+  const savedActs = activities
+    .filter(a => a.actionType === 'save' && a.articleId)
+    .map(a => a.articleId);
+
+  // 🔥 Build query (weighted)
+  readActs.forEach(a => {
+    queryParts.push(a.title + " " + a.description);
   });
 
-const likedActs = activities
-  .filter(a => a.actionType === 'like' && a.articleId)
-  .map(a => a.articleId);
-  likedActs.forEach((a) => {
-    const text = (a.title || "") + " " + (a.description || "");
-    queryParts.push(text, text);
+  likedActs.forEach(a => {
+    const t = a.title + " " + a.description;
+    queryParts.push(t, t);
   });
 
-const savedActs = activities
-  .filter(a => a.actionType === 'save' && a.articleId)
-  .map(a => a.articleId);
-  savedActs.forEach((a) => {
-    const text = (a.title || "") + " " + (a.description || "");
-    queryParts.push(text, text, text);
+  savedActs.forEach(a => {
+    const t = a.title + " " + a.description;
+    queryParts.push(t, t, t);
   });
+
+  // 🔥 Add user interests + profession
+  const userInterests = user.interests || [];
+  const profession = user.profession || "";
+
+  userInterests.forEach(i => queryParts.push(i, i));
+  if (profession) queryParts.push(profession, profession, profession);
 
   const queryText = queryParts.join(" ");
   const skip = (page - 1) * limit;
 
-  // 🔥 Cold Start (no history)
+  // 🔥 Cold start
   if (!queryText.trim()) {
-    const unique = deduplicate(allArticles);
-    return unique.slice(skip, skip + limit);
+    let latest = [...allArticles].sort(
+      (a, b) => new Date(b.publishedAt) - new Date(a.publishedAt)
+    );
+
+    return latest.slice(skip, skip + limit);
   }
 
-  // ✅ Step 2: Calculate TF-IDF scores
+  // ✅ Step 3: TF-IDF + Recency
   let scores = [];
 
   tfidf.tfidfs(queryText, (i, measure) => {
+    const article = allArticles[i];
+
+    const hoursOld =
+      (Date.now() - new Date(article.publishedAt)) / (1000 * 60 * 60);
+
+    const recencyScore = Math.max(0, 1 - hoursOld / 24);
+
+    const finalScore =
+      (0.7 * measure) +
+      (0.3 * recencyScore);
+
     scores.push({
       index: i,
-      score: measure,
+      score: finalScore,
     });
   });
 
-  // Sort by relevance
+  // 🔹 Sort by relevance
   scores.sort((a, b) => b.score - a.score);
 
   let rankedArticles = scores.map((item) => allArticles[item.index]);
 
-  // 🔥 STEP 3: Deduplicate after ranking
+  // 🔹 Deduplicate
   rankedArticles = deduplicate(rankedArticles);
 
-  // 🔥 STEP 4: Remove already seen articles
-  const seenUrls = new Set([
-    ...readActs.map(a => a.url || ''),
-    ...likedActs.map(a => a.url || ''),
-    ...savedActs.map(a => a.url || ''),
+  // 🔥 Step 4: REMOVE viewed + liked articles
+  const seenIds = new Set([
+    ...readActs.map(a => a._id.toString()),
+    ...likedActs.map(a => a._id.toString()),
   ]);
 
-  rankedArticles = rankedArticles.filter(a => !seenUrls.has(a.url));
+  rankedArticles = rankedArticles.filter(
+    a => !seenIds.has(a._id.toString())
+  );
 
-  // 🔥 OPTIONAL: Fallback if too few articles
-  if (rankedArticles.length < limit) {
-    const fallback = allArticles.filter(a => !seenUrls.has(a.url));
-    rankedArticles = [...rankedArticles, ...fallback];
-    rankedArticles = deduplicate(rankedArticles);
-  }
-
-  // ✅ Step 5: Hybrid Recommendation (80/20)
-  const userInterests = user.interests || [];
-
+  // 🔥 Step 5: Hybrid recommendation
   const interestMatched = rankedArticles.filter((article) =>
     userInterests.includes(article.category)
   );
@@ -111,24 +125,31 @@ const savedActs = activities
   );
 
   let hybridList = [];
-  let mIndex = 0;
-  let eIndex = 0;
+  let m = 0, e = 0;
 
-  while (mIndex < interestMatched.length || eIndex < exploration.length) {
-    // 4 interest-based
-    for (let i = 0; i < 4 && mIndex < interestMatched.length; i++) {
-      hybridList.push(interestMatched[mIndex++]);
+  while (m < interestMatched.length || e < exploration.length) {
+    for (let i = 0; i < 4 && m < interestMatched.length; i++) {
+      hybridList.push(interestMatched[m++]);
     }
-    // 1 exploration
-    if (eIndex < exploration.length) {
-      hybridList.push(exploration[eIndex++]);
+    if (e < exploration.length) {
+      hybridList.push(exploration[e++]);
     }
   }
 
-  // 🔥 STEP 6: Final dedup after hybrid
   hybridList = deduplicate(hybridList);
 
-  // 🔥 STEP 7: Pagination AFTER everything
+  // 🔥 Step 6: FINAL FILTER again (important)
+  hybridList = hybridList.filter(
+    a => !seenIds.has(a._id.toString())
+  );
+
+  // 🔥 Step 7: SHUFFLE (NEW ORDER EVERY REFRESH 🚀)
+  for (let i = hybridList.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [hybridList[i], hybridList[j]] = [hybridList[j], hybridList[i]];
+  }
+
+  // 🔥 Step 8: Pagination
   return hybridList.slice(skip, skip + limit);
 };
 

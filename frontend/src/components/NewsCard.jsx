@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect , useRef} from 'react';
 import { motion } from 'framer-motion';
 import {
   FaHeart, FaRegHeart,
@@ -45,6 +45,40 @@ const [loadingVideo, setLoadingVideo] = useState(false);
   const [chatLang, setChatLang] = useState("English");
 
 
+  const ref = useRef();
+  const hasTracked = useRef(false); // prevent multiple calls
+
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const entry = entries[0];
+
+        if (entry.isIntersecting && !hasTracked.current) {
+          hasTracked.current = true;
+
+          // 🔥 CALL VIEW API
+          fetch("http://localhost:5000/api/activity", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              userId,
+              articleId: news.articleId,
+              actionType: "view",
+            }),
+          }).catch(() => {});
+        }
+      },
+      {
+        threshold: 0.6, // visible 60%
+      }
+    );
+
+    if (ref.current) observer.observe(ref.current);
+
+    return () => observer.disconnect();
+  }, []);
 
   
   const handleGenerateVideo = async () => {
@@ -608,7 +642,7 @@ const handleCommentSubmit = async () => {
 
   return (
     <>
-      <div
+      <div ref={ref} 
         oonClick={(e) => {
           // only trigger if NOT clicking AI/chat
           if (e.target.closest(".no-redirect")) return;

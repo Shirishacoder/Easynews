@@ -71,25 +71,26 @@ router.get("/fetch-news", async (req, res) => {
     const existingArticles = await Article.find({}, "title");
     const existingTitles = existingArticles.map(a => a.title.toLowerCase());
 
-    for (let art of articles) {
-      const url = cleanUrl(art.url);
-      const title = art.title?.trim().toLowerCase();
+   for (let art of articles) {
+  const url = cleanUrl(art.url);
+  const title = art.title?.trim().toLowerCase();
 
-      if (!url || !title || title === "[removed]") continue;
+  if (!url || !title || title === "[removed]") continue;
 
-      // ❌ skip duplicate URL
-      if (seenUrls.has(url)) continue;
+  if (seenUrls.has(url)) continue;
 
-      // 🔥 similarity check (MAIN FIX)
-      const isDuplicate = existingTitles.some(existingTitle => {
-        return stringSimilarity.compareTwoStrings(title, existingTitle) > 0.7;
-      });
+  const isDuplicate = existingTitles.some(existingTitle => {
+    return stringSimilarity.compareTwoStrings(title, existingTitle) > 0.7;
+  });
 
-      if (isDuplicate) continue;
+  if (isDuplicate) continue;
 
-      seenUrls.add(url);
-      uniqueArticles.push(art);
-    }
+  // ✅ ADD THIS LINE (MAIN FIX)
+  existingTitles.push(title);
+
+  seenUrls.add(url);
+  uniqueArticles.push(art);
+}
 
     console.log("✨ Unique articles:", uniqueArticles.length);
 
@@ -154,11 +155,24 @@ router.get("/category/:type", async (req, res) => {
 // 🔹 Get Recent Articles
 router.get("/recent", async (req, res) => {
   try {
-    const articles = await Article.find()
-      .sort({ publishedAt: -1 })
-      .limit(20);
+    let articles = await Article.find();
 
-    res.json(articles);
+    // 🆕 Sort by latest
+    articles.sort((a, b) => new Date(b.publishedAt) - new Date(a.publishedAt));
+
+    // 🔥 Shuffle top 10 for variation
+    const top = articles.slice(0, 10);
+    const rest = articles.slice(10);
+
+    for (let i = top.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [top[i], top[j]] = [top[j], top[i]];
+    }
+
+    const final = [...top, ...rest];
+
+    res.json(final.slice(0, 20));
+
   } catch (err) {
     res.status(500).json({ error: "DB error" });
   }

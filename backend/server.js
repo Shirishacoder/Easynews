@@ -11,6 +11,7 @@ const activityRoutes = require("./routes/userActivity");
 const aiRoutes = require("./routes/ai");
 const storyArcRoutes = require("./routes/storyArc");
 
+
 // Connect to database
 connectDB();
 
