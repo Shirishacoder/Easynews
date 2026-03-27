@@ -5,6 +5,7 @@ const Article = require("../models/Article");
 
 // 🔹 Clean URL
 const cleanUrl = (url) => (url ? url.split("?")[0] : "");
+const stringSimilarity = require("string-similarity");
 
 // 🔹 Smart Categorization (IMPORTANT ✅)
 const categorizeArticle = (article) => {
@@ -53,38 +54,50 @@ const categorizeArticle = (article) => {
   return "General";
 };
 // 🔹 Fetch + Store News (UPDATED 🚀)
+
+
+
+
 router.get("/fetch-news", async (req, res) => {
   try {
-    // ✅ SINGLE API CALL (fixes your issue)
     const articles = await fetchNews();
 
     console.log("📰 Total fetched:", articles.length);
 
-    // ✅ Remove duplicates by Title and URL
     const seenUrls = new Set();
-    const seenTitles = new Set();
     const uniqueArticles = [];
+
+    // 👉 store titles for similarity check
+    const existingArticles = await Article.find({}, "title");
+    const existingTitles = existingArticles.map(a => a.title.toLowerCase());
 
     for (let art of articles) {
       const url = cleanUrl(art.url);
       const title = art.title?.trim().toLowerCase();
 
-      if (url && title && !seenUrls.has(url) && !seenTitles.has(title) && title !== "[removed]") {
-        seenUrls.add(url);
-        seenTitles.add(title);
-        uniqueArticles.push(art);
-      }
+      if (!url || !title || title === "[removed]") continue;
+
+      // ❌ skip duplicate URL
+      if (seenUrls.has(url)) continue;
+
+      // 🔥 similarity check (MAIN FIX)
+      const isDuplicate = existingTitles.some(existingTitle => {
+        return stringSimilarity.compareTwoStrings(title, existingTitle) > 0.7;
+      });
+
+      if (isDuplicate) continue;
+
+      seenUrls.add(url);
+      uniqueArticles.push(art);
     }
 
     console.log("✨ Unique articles:", uniqueArticles.length);
 
     let savedCount = 0;
 
-    // ✅ Save to DB
     for (let art of uniqueArticles.slice(0, 200)) {
       const cleanedUrl = cleanUrl(art.url);
-
-      const category = categorizeArticle(art); // 🔥 MAIN FIX
+      const category = categorizeArticle(art);
 
       const doc = {
         title: art.title,
@@ -96,13 +109,14 @@ router.get("/fetch-news", async (req, res) => {
         publishedAt: art.publishedAt || new Date(),
       };
 
-      const result = await Article.findOneAndUpdate(
-        { title: art.title }, // Strictly match title to stop duplicate news across sources
-        doc,
-        { upsert: true, new: true }
+      // ✅ FIX: use URL for DB uniqueness
+      await Article.updateOne(
+        { url: cleanedUrl },
+        { $set: doc },
+        { upsert: true }
       );
 
-      if (result) savedCount++;
+      savedCount++;
     }
 
     console.log("💾 Saved:", savedCount);

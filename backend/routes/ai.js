@@ -3,6 +3,14 @@ const router = express.Router();
 const Groq = require("groq-sdk");
 const axios = require("axios");
 const cheerio = require("cheerio");
+const fs = require("fs");
+const path = require("path");
+const { exec } = require("child_process");
+const fetch = require("node-fetch"); // if not installed
+const gTTS = require("gtts");
+const id = Date.now();
+const bgmPath = path.join(__dirname, "../public/bgm1.mp3");
+
 
 
 const groq = new Groq({
@@ -27,6 +35,108 @@ async function getArticleContent(url) {
     return "";
   }
 }
+
+
+
+
+// 🎬 AI VIDEO GENERATION
+router.post("/video", async (req, res) => {
+  try {
+    const { title, summary, image } = req.body;
+
+    // 🧠 Generate AI Script
+const aiPrompt = `
+You are a professional news video script writer.
+
+Convert the following news into a short engaging narration script (max 60-90 seconds).
+
+Rules:
+- Make it engaging like YouTube Shorts / Reels
+- Use simple, conversational tone
+- No bullet points
+- No headings
+- Output only narration text
+
+Title: ${title}
+Summary: ${summary}
+`;
+
+const aiResponse = await groq.chat.completions.create({
+  model: "llama-3.1-8b-instant",
+  messages: [{ role: "user", content: aiPrompt }]
+});
+
+const script = aiResponse.choices[0]?.message?.content;
+
+
+
+// 🎙 Generate Voice
+const audioPath = path.join(__dirname, `../public/audio_${id}.mp3`);
+
+const tts = new gTTS(script, "en");
+
+await new Promise((resolve, reject) => {
+  tts.save(audioPath, (err) => {
+    if (err) reject(err);
+    else resolve();
+  });
+});
+
+
+
+// ⚡ Speed increase
+const fastAudioPath = path.join(__dirname, `../public/audio_fast_${id}.mp3`);
+
+const speedCommand = `ffmpeg -y -i "${audioPath}" -filter:a atempo=1.25 -vn "${fastAudioPath}"`;
+
+await new Promise((resolve, reject) => {
+  exec(speedCommand, (err, stdout, stderr) => {
+   
+
+    if (err) reject(err);
+    else resolve();
+  });
+});
+
+
+
+    // 2️⃣ Download Image
+ const imagePath = path.join(__dirname, `../public/image_${id}.jpg`);
+
+   const response = await axios.get(image, {
+  responseType: "arraybuffer",
+  headers: {
+    "User-Agent": "Mozilla/5.0",
+    "Referer": "https://google.com"
+  }
+});
+
+fs.writeFileSync(imagePath, response.data);
+
+    // 3️⃣ Create Video using FFmpeg
+    const outputPath = path.join(__dirname, `../public/output_${id}.mp4`);
+
+   const command = `ffmpeg -y -loop 1 -i "${imagePath}" -i "${fastAudioPath}" -i "${bgmPath}" -filter_complex "[2:a]volume=0.20[bgm];[1:a][bgm]amix=inputs=2:duration=shortest[a]" -map 0:v -map "[a]" -c:v libx264 -tune stillimage -c:a aac -b:a 192k -shortest -pix_fmt yuv420p -vf scale=1280:720 "${outputPath}"`;
+
+    exec(command, (err, stdout, stderr) => {
+
+
+  if (err) {
+    console.error("❌ FFmpeg error:", err);
+    return res.status(500).json({ error: "Video failed" });
+  }
+
+ res.json({
+  videoUrl: `http://localhost:5000/output_${id}.mp4`
+});
+});
+
+  } catch (err) {
+    console.error("❌ Video error:", err);
+    res.status(500).json({ error: "Something went wrong" });
+  }
+});
+
 
 
 // 🔥 Summarize News

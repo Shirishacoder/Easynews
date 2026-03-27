@@ -28,6 +28,11 @@ const [comments, setComments] = useState([]);
   const [translatedSummary, setTranslatedSummary] = useState(null);
   const [isTranslatingCard, setIsTranslatingCard] = useState(false);
   const [showOuterLangSelect, setShowOuterLangSelect] = useState(false);
+  const [videoUrl, setVideoUrl] = useState(null);
+const [loadingVideo, setLoadingVideo] = useState(false);
+
+
+
 
   const chatContainerRef = React.useRef(null);
   useEffect(() => {
@@ -40,6 +45,41 @@ const [comments, setComments] = useState([]);
   const [chatLang, setChatLang] = useState("English");
 
 
+
+  
+  const handleGenerateVideo = async () => {
+  if (loadingVideo) return;
+
+  setLoadingVideo(true);
+  setVideoUrl(null);
+
+  try {
+    const res = await fetch("http://localhost:5000/api/ai/video", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        title: news.title,
+        summary: news.summary,
+        image: news.image
+      })
+    });
+
+    const data = await res.json();
+
+    if (data.videoUrl) {
+      setVideoUrl(data.videoUrl);
+    } else {
+      alert("Failed to generate video");
+    }
+
+  } catch (err) {
+    console.error("Video error:", err);
+  }
+
+  setLoadingVideo(false);
+};
 
 
   const handleSmartAI = async (mode) => {
@@ -931,6 +971,49 @@ if (chatLang !== "English") {
                 {isSpeaking ? "Stop" : "Listen"}
               </span>
             </button>
+
+
+             <button
+  onClick={(e) => {
+    e.stopPropagation();
+    handleGenerateVideo();
+  }}
+  className="flex flex-col items-center group"
+>
+  <div className="w-12 h-12 bg-yellow-500/50 rounded-full flex items-center justify-center group-hover:scale-110">
+    🎬
+  </div>
+
+  <span className="text-yellow-200 text-xs mt-1">
+    {loadingVideo ? "Generating..." : "Video"}
+  </span>
+</button>
+
+{videoUrl && (
+  <div className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center z-50">
+
+    {/* Video Container */}
+    <div className="relative w-[90%] max-w-md md:max-w-lg">
+
+      {/* ❌ Close Button */}
+      <button
+        onClick={() => setVideoUrl(null)}
+        className="absolute -top-10 right-0 text-white text-2xl bg-black/50 px-3 py-1 rounded-full hover:bg-red-500 transition"
+      >
+        ✖
+      </button>
+
+      {/* 🎬 Video Player */}
+      <video
+        src={videoUrl}
+        controls
+        autoPlay
+        className="w-full rounded-xl shadow-lg"
+      />
+
+    </div>
+  </div>
+)}
 
 
             <div className="relative flex flex-col items-center">

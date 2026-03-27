@@ -19,6 +19,8 @@ require('./config/passport');
 
 const app = express();
 
+
+app.use(express.static("public"));
 // Middlewares
 app.use(express.json());
 app.use(cookieParser());
