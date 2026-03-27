@@ -23,7 +23,7 @@ const Trending = () => {
     setLoading(true);
     try {
       const res = await fetch(
-        `http://localhost:5000/api/news/category/${category}`
+       `http://localhost:5000/api/news/trending`
       );
       const data = await res.json();
       setArticles(data || []);

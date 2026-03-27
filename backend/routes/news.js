@@ -58,6 +58,56 @@ const categorizeArticle = (article) => {
 
 
 
+router.get("/trending", async (req, res) => {
+  try {
+    const Activity = require("../models/Activity");
+    const Article = require("../models/Article");
+
+    // 🔥 Get last 24 hours data (important)
+    const last24h = new Date(Date.now() - 24 * 60 * 60 * 1000);
+
+    const activities = await Activity.find({
+      timestamp: { $gte: last24h }
+    }).populate("articleId");
+
+    // 🔹 Count scores
+    const scoreMap = {};
+
+    activities.forEach(act => {
+      if (!act.articleId) return;
+
+      const id = act.articleId._id.toString();
+
+      if (!scoreMap[id]) {
+        scoreMap[id] = {
+          article: act.articleId,
+          score: 0
+        };
+      }
+
+      if (act.actionType === "view") scoreMap[id].score += 1;
+      if (act.actionType === "like") scoreMap[id].score += 3;
+      if (act.actionType === "save") scoreMap[id].score += 5;
+    });
+
+    // 🔹 Convert to array
+    let trending = Object.values(scoreMap);
+
+    // 🔥 Sort by score
+    trending.sort((a, b) => b.score - a.score);
+
+    // 🔹 Extract articles
+    const result = trending.map(item => item.article);
+
+    res.json(result.slice(0, 20));
+
+  } catch (err) {
+    console.error("Trending error:", err);
+    res.status(500).json({ error: "Trending fetch failed" });
+  }
+});
+
+
 router.get("/fetch-news", async (req, res) => {
   try {
     const articles = await fetchNews();

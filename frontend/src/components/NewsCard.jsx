@@ -1024,25 +1024,25 @@ if (chatLang !== "English") {
 </button>
 
 {videoUrl && (
-  <div className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center z-50">
+  <div className="fixed inset-0 bg-black/90 backdrop-blur-md flex items-center justify-center z-50">
 
-    {/* Video Container */}
-    <div className="relative w-[90%] max-w-md md:max-w-lg">
+    {/* ❌ Close Button */}
+    <button
+      onClick={() => setVideoUrl(null)}
+      className="absolute top-5 right-5 text-white text-2xl bg-black/50 px-4 py-2 rounded-full hover:bg-red-500 transition z-50"
+    >
+      ✖
+    </button>
 
-      {/* ❌ Close Button */}
-      <button
-        onClick={() => setVideoUrl(null)}
-        className="absolute -top-10 right-0 text-white text-2xl bg-black/50 px-3 py-1 rounded-full hover:bg-red-500 transition"
-      >
-        ✖
-      </button>
+    {/* 🎬 Video Container */}
+    <div className="w-full h-full flex items-center justify-center">
 
       {/* 🎬 Video Player */}
       <video
         src={videoUrl}
         controls
         autoPlay
-        className="w-full rounded-xl shadow-lg"
+        className="w-full h-full object-contain"
       />
 
     </div>

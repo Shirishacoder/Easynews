@@ -116,7 +116,13 @@ fs.writeFileSync(imagePath, response.data);
     // 3️⃣ Create Video using FFmpeg
     const outputPath = path.join(__dirname, `../public/output_${id}.mp4`);
 
-   const command = `ffmpeg -y -loop 1 -i "${imagePath}" -i "${fastAudioPath}" -i "${bgmPath}" -filter_complex "[2:a]volume=0.20[bgm];[1:a][bgm]amix=inputs=2:duration=shortest[a]" -map 0:v -map "[a]" -c:v libx264 -tune stillimage -c:a aac -b:a 192k -shortest -pix_fmt yuv420p -vf scale=1280:720 "${outputPath}"`;
+   const command = `ffmpeg -y -loop 1 -i "${imagePath}" -i "${fastAudioPath}" -i "${bgmPath}" \
+-filter_complex "[1:a]volume=2.0[a1];[2:a]volume=0.18[a2];[a1][a2]amix=inputs=2:duration=shortest:dropout_transition=2[a]" \
+-map 0:v -map "[a]" \
+-c:v libx264 -tune stillimage \
+-c:a aac -b:a 192k \
+-shortest -pix_fmt yuv420p \
+-vf scale=1280:720 "${outputPath}"`;
 
     exec(command, (err, stdout, stderr) => {
 
