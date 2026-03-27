@@ -747,9 +747,26 @@ const handleCommentSubmit = async () => {
 
       const data = await res.json();
 
-      const timelineText = data.timeline
-        .map(t => `• ${t.title}`)
-        .join("\n");
+      let timelineText = data.timeline
+  .map(t => `• ${t.title}`)
+  .join("\n");
+
+// 🔥 TRANSLATE STORY ARC
+if (chatLang !== "English") {
+  const resTranslate = await fetch("http://localhost:5000/api/ai/translate", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({
+      text: timelineText,
+      targetLang: chatLang
+    })
+  });
+
+  const translated = await resTranslate.json();
+  timelineText = translated.translated || timelineText;
+}
 
       setAiMessages(prev => [
         ...prev.filter(m => m.text !== "Generating story arc..."),

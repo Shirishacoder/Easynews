@@ -26,11 +26,19 @@ const ProtectedRoute = ({ children }) => {
 const DashboardLayout = ({ children, showSidebar }) => {
   return (
     <div className="flex h-screen w-full bg-black text-white overflow-hidden">
-      <Sidebar showSidebar={showSidebar} /> 
 
-      <main className="flex-1 h-full relative">
+      {/* SIDEBAR */}
+      <Sidebar showSidebar={showSidebar} />
+
+      {/* 🔥 MAIN CONTENT (FIXED HERE) */}
+      <main
+        className={`flex-1 h-full relative transition-all duration-300 ${
+          showSidebar ? "ml-64" : "ml-0"
+        }`}
+      >
         {children}
       </main>
+
     </div>
   );
 };
