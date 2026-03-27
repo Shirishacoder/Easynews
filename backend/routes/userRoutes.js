@@ -25,5 +25,17 @@ router.post('/onboarding', protect, async (req, res) => {
     res.status(500).json({ message: 'Server Error' });
   }
 });
+// GET COMMENTS FOR ARTICLE
+router.get("/comments/:articleId", async (req, res) => {
+  try {
+    const comments = await Activity.find({
+      articleId: req.params.articleId,
+      actionType: "comment"
+    }).sort({ timestamp: -1 });
 
+    res.json(comments);
+  } catch (err) {
+    res.status(500).json({ error: "Failed to fetch comments" });
+  }
+});
 module.exports = router;

@@ -9,6 +9,7 @@ const newsRoutes = require("./routes/news");
 const recommendRoutes = require("./routes/recommend");
 const activityRoutes = require("./routes/userActivity");
 const aiRoutes = require("./routes/ai");
+const storyArcRoutes = require("./routes/storyArc");
 
 // Connect to database
 connectDB();
@@ -27,6 +28,7 @@ app.use(
     credentials: true,
   })
 );
+app.use("/api/story-arc", storyArcRoutes); 
 app.use("/api/news", newsRoutes);
 app.use("/api/recommend", recommendRoutes);
 // Session middleware

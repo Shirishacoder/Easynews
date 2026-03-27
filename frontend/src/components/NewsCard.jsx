@@ -17,6 +17,7 @@ export default function NewsCard({ news, userId }) {
   const [commentCount, setCommentCount] = useState(0);
   const [showComments, setShowComments] = useState(false);
   const [commentText, setCommentText] = useState("");
+const [comments, setComments] = useState([]);
   const [copied, setCopied] = useState(false);
   const [summary, setSummary] = useState("");
   const [loadingAI, setLoadingAI] = useState(false);
@@ -332,35 +333,35 @@ export default function NewsCard({ news, userId }) {
       ]);
     }
   };
+const handleCommentSubmit = async () => {
+  if (!commentText.trim()) return;
 
-  const handleCommentSubmit = async () => {
-    if (!commentText.trim()) return;
+  try {
+    await fetch("http://localhost:5000/api/activity/comment", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify({
+        articleId: news.articleId,   // ✅ FIX
+        commentText,
+        title: news.title,
+        description: news.summary,
+        image: news.image,
+        url: news.url
+      }),
+    });
 
-    try {
-      await fetch("http://localhost:5000/api/activity/comment", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        credentials: "include",
-        body: JSON.stringify({
-          articleId: news.articleId,
-          commentText: commentText,
-          title: news.title,
-          description: news.summary,
-          image: news.image,
-          url: news.url
-        }),
-      });
+    setCommentText("");
 
-      setCommentText(""); // clear input
-      setCommentCount(prev => prev + 1); // 🔥 instant update
+    // ✅ REFETCH COMMENTS
+    fetch(`/api/activity/comments/${news.articleId}`)
+      .then(res => res.json())
+      .then(setComments);
 
-    } catch (err) {
-      console.error("Comment error:", err);
-    }
-  };
-
+  } catch (err) {
+    console.error(err);
+  }
+};
 
   const handleShare = async (e) => {
     e.stopPropagation();
@@ -454,7 +455,7 @@ export default function NewsCard({ news, userId }) {
 
         const data = await res.json();
 
-        setCommentCount(prev => prev + 1);
+       setCommentCount(data.count);
 
       } catch (err) {
         console.error("Comment count error:", err);
@@ -634,9 +635,13 @@ export default function NewsCard({ news, userId }) {
             {/* COMMENT */}
             <button
               onClick={(e) => {
-                e.stopPropagation();
-                setShowComments(true);
-              }}
+  e.stopPropagation();
+  setShowComments(true);
+
+ fetch(`http://localhost:5000/api/activity/comments/${news.articleId}`)
+  .then(res => res.json())
+  .then(setComments);
+}}
               className="flex flex-col items-center group"
             >
               <div className="w-12 h-12 bg-black/40 rounded-full flex items-center justify-center group-hover:scale-110">
@@ -726,6 +731,45 @@ export default function NewsCard({ news, userId }) {
                   >
                     ⚡ Key Points
                   </button>
+                  <button
+  onClick={async (e) => {
+    e.stopPropagation();
+
+    setAiMessages(prev => [
+      ...prev,
+      { type: "bot", text: "Generating story arc..." }
+    ]);
+
+    try {
+      const res = await fetch(
+        `http://localhost:5000/api/story-arc/${news.title.split(" ")[0]}`
+      );
+
+      const data = await res.json();
+
+      const timelineText = data.timeline
+        .map(t => `• ${t.title}`)
+        .join("\n");
+
+      setAiMessages(prev => [
+        ...prev.filter(m => m.text !== "Generating story arc..."),
+        {
+          type: "bot",
+          text: `📖 Story Arc:\n\n${timelineText}`
+        }
+      ]);
+
+    } catch {
+      setAiMessages(prev => [
+        ...prev,
+        { type: "bot", text: "Failed to load story arc" }
+      ]);
+    }
+  }}
+  className="text-blue-300 hover:underline"
+>
+  📖 Story Arc
+</button>
 
                 </div>
 
@@ -967,43 +1011,64 @@ export default function NewsCard({ news, userId }) {
         </motion.div>
       </div>
 
-      {/* COMMENT MODAL */}
-      {showComments && (
-        <div
-          className="fixed inset-0 bg-black/70 flex items-center justify-center z-50"
-          onClick={() => setShowComments(false)}
-        >
-          <div
-            className="w-[90%] max-w-md bg-zinc-900 rounded-2xl p-4 shadow-xl"
-            onClick={(e) => e.stopPropagation()}
-          >
+     
+              
+{/* Input Section */}
+{/* COMMENT MODAL */}
+{showComments && (
+  <div
+    className="fixed inset-0 bg-black/70 flex items-center justify-center z-50"
+    onClick={() => setShowComments(false)}
+  >
+    <div
+      className="w-[90%] max-w-md bg-zinc-900 rounded-2xl p-4 shadow-xl"
+      onClick={(e) => e.stopPropagation()}
+    >
 
-            {/* Header */}
-            <h3 className="text-white text-lg font-semibold mb-3 text-center">
-              Comments
-            </h3>
+      <h3 className="text-white text-lg font-semibold mb-3 text-center">
+        Comments
+      </h3>
 
-            {/* Input Section */}
-            <div className="flex gap-2">
-              <input
-                type="text"
-                value={commentText}
-                onChange={(e) => setCommentText(e.target.value)}
-                placeholder="Write a comment..."
-                className="flex-1 bg-black/50 text-white px-3 py-2 rounded-lg outline-none text-sm"
-              />
-
-              <button
-                onClick={handleCommentSubmit}
-                className="bg-blue-500 hover:bg-blue-600 px-4 py-2 rounded-lg text-white text-sm"
-              >
-                Send
-              </button>
+      {/* COMMENTS LIST */}
+      <div className="mt-2 max-h-60 overflow-y-auto space-y-2">
+        {comments.length === 0 ? (
+          <p className="text-gray-400 text-sm text-center">
+            No comments yet
+          </p>
+        ) : (
+          comments.map((c, i) => (
+            <div key={i} className="bg-black/40 p-2 rounded text-sm">
+              <p className="text-xs text-gray-400">
+                {c.userId || "User"}
+              </p>
+              <p className="text-gray-300">{c.commentText}</p>
             </div>
+          ))
+        )}
+      </div>
 
-          </div>
-        </div>
-      )}
+      {/* INPUT */}
+      <div className="flex gap-2 mt-3">
+        <input
+          type="text"
+          value={commentText}
+          onChange={(e) => setCommentText(e.target.value)}
+          placeholder="Write a comment..."
+          className="flex-1 bg-black/50 text-white px-3 py-2 rounded-lg outline-none text-sm"
+        />
+
+        <button
+          onClick={handleCommentSubmit}
+          className="bg-blue-500 hover:bg-blue-600 px-4 py-2 rounded-lg text-white text-sm"
+        >
+          Send
+        </button>
+      </div>
+
+    </div>
+  </div>
+)}
     </>
   );
+  console.log(news)
 }

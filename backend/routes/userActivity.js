@@ -27,7 +27,7 @@ router.post("/read", protect, async (req, res) => {
 
   try {
     // ✅ Ensure Article exists (for populate/counts)
-    let article = await Article.findById(articleId);
+ let article = await Article.findById(articleId);
     if (!article) {
       console.log("⚠️ Article not found, creating stub");
       article = await Article.create({
@@ -349,7 +349,20 @@ router.get("/like/:articleId/count", async (req, res) => {
     res.status(500).json({ count: 0 });
   }
 });
+router.get("/comments/:articleId", async (req, res) => {
+  try {
+    const articleId = decodeURIComponent(req.params.articleId);
 
+    const comments = await Activity.find({
+      articleId,
+      actionType: "comment"
+    }).sort({ timestamp: -1 });
+
+    res.json(comments);
+  } catch (err) {
+    res.status(500).json({ error: "Failed to fetch comments" });
+  }
+});
 // Track comment
 router.post("/comment", protect, async (req, res) => {
   const { articleId, commentText, title, description, image, url } = req.body;
@@ -359,9 +372,9 @@ router.post("/comment", protect, async (req, res) => {
   if (!commentText?.trim()) {
     return res.status(400).json({ message: "Comment text required" });
   }
-  if (!articleId || !mongoose.Types.ObjectId.isValid(articleId)) {
-    return res.status(400).json({ message: "Invalid article ID" });
-  }
+  if (!articleId) {
+  return res.status(400).json({ message: "Article ID required" });
+}
   if (!userId) {
     return res.status(401).json({ error: "Not authenticated" });
   }
@@ -370,7 +383,7 @@ router.post("/comment", protect, async (req, res) => {
 
   try {
     // ✅ Ensure Article exists
-    let article = await Article.findById(articleId);
+  let article = await Article.findOne({ url });
     if (!article) {
       console.log("⚠️ Article not found for comment, creating stub");
       article = await Article.create({
@@ -381,6 +394,7 @@ router.post("/comment", protect, async (req, res) => {
         url: url || "",
         category: "general"
       });
+      
     }
 
     // ✅ Create comment (no toggle, always new)

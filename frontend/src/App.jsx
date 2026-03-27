@@ -12,7 +12,7 @@ import Trending from './pages/Trending';
 import Profile from './pages/Profile';
 import { useState } from "react";
 
-
+import StoryArc from "./pages/StoryArc";
 import Header from "./components/Header";
 
 const ProtectedRoute = ({ children }) => {
@@ -26,7 +26,7 @@ const ProtectedRoute = ({ children }) => {
 const DashboardLayout = ({ children, showSidebar }) => {
   return (
     <div className="flex h-screen w-full bg-black text-white overflow-hidden">
-      <Sidebar showSidebar={showSidebar} /> ✅
+      <Sidebar showSidebar={showSidebar} /> 
 
       <main className="flex-1 h-full relative">
         {children}
@@ -85,7 +85,7 @@ function App() {
     </DashboardLayout>
   </ProtectedRoute>
 } />
-
+<Route path="/story/:topic" element={<StoryArc />} />
 <Route path="/profile" element={
   <ProtectedRoute>
     <DashboardLayout showSidebar={showSidebar}>
